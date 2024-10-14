@@ -1,55 +1,31 @@
+# server/models.py
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
-from sqlalchemy.orm import validates
-from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy_serializer import SerializerMixin
+from sqlalchemy import CheckConstraint
 
-metadata = MetaData(naming_convention={
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-})
+db = SQLAlchemy()
 
-db = SQLAlchemy(metadata=metadata)
-
-
-class Sweet(db.Model, SerializerMixin):
-    __tablename__ = 'sweets'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-
-    # Add relationship
-    
-    # Add serialization
-    
-    def __repr__(self):
-        return f'<Sweet {self.id}>'
-
-
-class Vendor(db.Model, SerializerMixin):
+class Vendor(db.Model):
     __tablename__ = 'vendors'
-
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    vendor_sweets = db.relationship('VendorSweet', back_populates='vendor')
 
-    # Add relationship
-    
-    # Add serialization
-    
-    def __repr__(self):
-        return f'<Vendor {self.id}>'
+class Sweet(db.Model):
+    __tablename__ = 'sweets'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    vendor_sweets = db.relationship('VendorSweet', back_populates='sweet')
 
-
-class VendorSweet(db.Model, SerializerMixin):
+class VendorSweet(db.Model):
     __tablename__ = 'vendor_sweets'
-
     id = db.Column(db.Integer, primary_key=True)
-    price = db.Column(db.Integer, nullable=False)
+    vendor_id = db.Column(db.Integer, db.ForeignKey('vendors.id'), nullable=False)
+    sweet_id = db.Column(db.Integer, db.ForeignKey('sweets.id'), nullable=False)
+    price = db.Column(db.Float, nullable=False)
 
-    # Add relationships
-    
-    # Add serialization
-    
-    # Add validation
-    
-    def __repr__(self):
-        return f'<VendorSweet {self.id}>'
+    __table_args__ = (
+        CheckConstraint('price > 0', name='check_price_positive'),
+    )
+
+    vendor = db.relationship('Vendor', back_populates='vendor_sweets')
+    sweet = db.relationship('Sweet', back_populates='vendor_sweets')

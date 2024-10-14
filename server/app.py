@@ -1,28 +1,70 @@
-#!/usr/bin/env python3
-
-from models import db, Sweet, Vendor, VendorSweet
+# server/app.py
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask import Flask, request, make_response
-from flask_restful import Api, Resource
-import os
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE = os.environ.get(
-    "DB_URI", f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}")
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.json.compact = False
 
-migrate = Migrate(app, db)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db) 
 
-db.init_app(app)
+# Import your models here
+from models import Vendor, Sweet, VendorSweet
 
-@app.route('/')
-def home():
-    return '<h1>Code challenge</h1>'
+# Ensure tables are created when the app starts
+with app.app_context():
+    db.create_all()
+
+# Route to add a new VendorSweet with price validation
+@app.route('/add_vendor_sweet', methods=['POST'])
+def add_vendor_sweet():
+    data = request.json
+    price = data.get('price', 0)
+
+    # Validate price
+    if price <= 0:
+        return jsonify({"error": "Price must be greater than zero."}), 400
+
+    new_vendor_sweet = VendorSweet(
+        vendor_id=data.get('vendor_id'),
+        sweet_id=data.get('sweet_id'),
+        price=price
+    )
+
+    try:
+        db.session.add(new_vendor_sweet)
+        db.session.commit()
+        return jsonify({"message": "VendorSweet created successfully!"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+# Route to get all vendors
+@app.route('/vendors', methods=['GET'])
+def get_vendors():
+    vendors = Vendor.query.all()
+    return jsonify([{"id": v.id, "name": v.name} for v in vendors]), 200
+
+# Route to get all sweets
+@app.route('/sweets', methods=['GET'])
+def get_sweets():
+    sweets = Sweet.query.all()
+    return jsonify([{"id": s.id, "name": s.name} for s in sweets]), 200
+
+@app.route('/test_db', methods=['GET'])
+def test_db():
+    try:
+        db.create_all()  # Ensure all tables are created
+        test_vendor = Vendor(name='Test Vendor')
+        db.session.add(test_vendor)
+        db.session.commit()
+        return jsonify({"message": "Test entry added!"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
-    app.run(port=5555, debug=True)
+    app.run(debug=True)
